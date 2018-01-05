@@ -71,8 +71,18 @@ public class Scaffold
     {
         return new ScaffoldChild(this, id);
     }
-        
-    public Scaffold(string file = "", string section = "", Dictionary<String, SerializedScaffold> cache = null)
+
+    public Scaffold(string file, Dictionary<String, SerializedScaffold> cache = null)
+    {
+        Setup(file, "", cache);
+    }
+
+    public Scaffold(string file, string section = "", Dictionary<String, SerializedScaffold> cache = null)
+    {
+        Setup(file, section, cache);
+    }
+
+    private void Setup(string file, string section = "", Dictionary<String, SerializedScaffold> cache = null)
     {
         SerializedScaffold cached = new SerializedScaffold() { elements = new List<ScaffoldElement>() };
         Data = new Dictionary<string, string>();
