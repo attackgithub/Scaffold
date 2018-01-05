@@ -1,7 +1,6 @@
 ![Datasilk Logo](http://www.markentingh.com/projects/datasilk/logo.png)
 
-#Scaffold
-
+# Scaffold
 #### A light-weight templating engine built in C#, used for mutating strings such as HTML
 
 * Inject dynamic data & lists
