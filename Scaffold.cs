@@ -2,16 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using Newtonsoft.Json;
+using System.Runtime.Serialization.Formatters.Binary;
 
-public struct structScaffold
+[Serializable]
+public struct SerializedScaffold
 {
     public Dictionary<string, string> Data;
     public Dictionary<string, string> arguments;
-    public List<structScaffoldElement> elements;
+    public List<ScaffoldElement> elements;
 }
 
-public struct structScaffoldElement
+[Serializable]
+public struct ScaffoldElement
 {
     public string name;
     public string htm;
@@ -59,7 +61,7 @@ public class ScaffoldDictionary : Dictionary<string, string>
 public class Scaffold
 {
     public Dictionary<string, string> Data;
-    public List<structScaffoldElement> elements;
+    public List<ScaffoldElement> elements;
     public string serializedElements;
     public string HTML = "";
     public string sectionName = "";
@@ -70,37 +72,28 @@ public class Scaffold
         return new ScaffoldChild(this, id);
     }
         
-    public Scaffold(string file = "", string html = "", string section = "", ref Dictionary<String, Scaffold> cache = null)
+    public Scaffold(string file = "", string section = "", Dictionary<String, SerializedScaffold> cache = null)
     {
-        Scaffold cached = null;
+        SerializedScaffold cached = new SerializedScaffold() { elements = new List<ScaffoldElement>() };
         Data = new Dictionary<string, string>();
         sectionName = section;
         if(cache != null){
             if(cache.ContainsKey(file + '/' + section) == true){
                 cached = cache[file + '/' + section];
-                Data = scaffold.Data;
-                elements = scaffold.elements;
+                Data = cached.Data;
+                elements = cached.elements;
             }
         }
-        if (cached == null)
+        if (cached.elements.Count == 0)
         {
-            elements = new List<structScaffoldElement>();
-
-            //first, check if html is already provided
-            HTML = html;
-            if(HTML == "")
+            elements = new List<ScaffoldElement>();
+            
+            //try loading file from disk
+            if (File.Exists(file))
             {
-                //try loading file from disk or cache next
-                if (S.Server.Cache.ContainsKey(file) == false)
-                {
-                    HTML = File.ReadAllText(S.Server.MapPath(file));
-                }
-                else
-                {
-                    HTML = (string)S.Server.Cache[file];
-                }
+                HTML = File.ReadAllText(file);
             }
-            if(HTML == "") { return; }
+            if (HTML.Trim() == "") { return; }
 
             //next, find the group of code matching the scaffold section name
             if (section != "")
@@ -135,7 +128,7 @@ public class Scaffold
                 var i = 0;
                 var u = 0;
                 var u2 = 0;
-                structScaffoldElement scaff;
+                ScaffoldElement scaff;
 
                 //types of scaffold elements
 
@@ -159,7 +152,7 @@ public class Scaffold
                             scaff.name = arr[x].Substring(0, u - 1).Trim();
                             u2 = arr[x].IndexOf('"', u + 2);
                             //load the scaffold HTML
-                            var newScaff = new Scaffold(S, arr[x].Substring(u + 1, u2 - u - 1));
+                            var newScaff = new Scaffold(arr[x].Substring(u + 1, u2 - u - 1), "", cache);
 
                             //rename child scaffold variables with a prefix of "scaff.name-"
                             var ht = newScaff.HTML;
@@ -194,13 +187,13 @@ public class Scaffold
                     {
                         if (x == 0 && HTML.IndexOf(arr[x].Substring(3)) == 0)
                         {
-                            elements.Add(new structScaffoldElement() { htm = arr[x].Substring(3), name = "" });
+                            elements.Add(new ScaffoldElement() { htm = arr[x].Substring(3), name = "" });
                         }
                         else if (arr[x].Trim() != "")
                         {
                             i = arr[x].IndexOf("}}");
                             u = arr[x].IndexOf('"');
-                            scaff = new structScaffoldElement();
+                            scaff = new ScaffoldElement();
                             if (i > 0)
                             {
                                 scaff.htm = arr[x].Substring(i + 2);
@@ -218,13 +211,12 @@ public class Scaffold
             }
             //cache the scaffold data
             if(cache != null){
-                var scaffold = new structScaffold();
+                var scaffold = new SerializedScaffold();
                 scaffold.Data = Data;
                 scaffold.elements = elements;
                 cache.Add(file + '/' + section, scaffold);
             }
         }
-        serializedElements = S.Util.Serializer.WriteObjectToString(elements);
     }
 
     private string JoinHTML(string[] html)
@@ -255,7 +247,7 @@ public class Scaffold
     {
         //deserialize list of elements since we will be manipulating the list,
         //so we don't want to permanently mutate the public elements array
-        var elems = (List<structScaffoldElement>)DeepCopy<List<structScaffoldElement>>(elements);
+        var elems = (List<ScaffoldElement>)DeepCopy<List<ScaffoldElement>>(elements);
         if (elems.Count > 0)
         {
             //render scaffold with paired nData data
