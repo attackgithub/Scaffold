@@ -66,8 +66,9 @@ public class Scaffold
     public string HTML = "";
     public string sectionName = "";
     public ScaffoldChild _child = null;
+    private string _path = "";
 
-    public ScaffoldChild Parent(string id)
+    public ScaffoldChild Child(string id)
     {
         return new ScaffoldChild(this, id);
     }
@@ -77,7 +78,7 @@ public class Scaffold
         Setup(file, "", cache);
     }
 
-    public Scaffold(string file, string section = "", Dictionary<String, SerializedScaffold> cache = null)
+    public Scaffold(string file, string section, Dictionary<String, SerializedScaffold> cache = null)
     {
         Setup(file, section, cache);
     }
@@ -99,9 +100,9 @@ public class Scaffold
             elements = new List<ScaffoldElement>();
             
             //try loading file from disk
-            if (File.Exists(file))
+            if (File.Exists(MapPath(file)))
             {
-                HTML = File.ReadAllText(file);
+                HTML = File.ReadAllText(MapPath(file));
             }
             if (HTML.Trim() == "") { return; }
 
@@ -398,7 +399,7 @@ public class Scaffold
         return html;
     }
 
-    public static T DeepCopy<T>(T obj)
+    private static T DeepCopy<T>(T obj)
 
        {
            if (!typeof(T).IsSerializable)
@@ -423,4 +424,12 @@ public class Scaffold
            return result;
 
        }
+
+    private string MapPath(string strPath = "")
+    {
+        if (_path == "") { _path = Path.GetFullPath(".") + "\\"; }
+        var str = strPath.Replace("/", "\\");
+        if (str.Substring(0, 1) == "\\") { str = str.Substring(1); }
+        return _path + str;
+    }
 }
