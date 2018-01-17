@@ -32,7 +32,7 @@ public class ScaffoldChild
         Data = new ScaffoldDictionary(parent, id);
     }
 
-    
+
 }
 
 public class ScaffoldDictionary : Dictionary<string, string>
@@ -65,8 +65,8 @@ public class Scaffold
     public string serializedElements;
     public string HTML = "";
     public string sectionName = "";
-    private ScaffoldChild _child = null;
-    private string _path;
+    public ScaffoldChild _child = null;
+    private string _path = "";
 
     public ScaffoldChild Child(string id)
     {
@@ -88,8 +88,10 @@ public class Scaffold
         SerializedScaffold cached = new SerializedScaffold() { elements = new List<ScaffoldElement>() };
         Data = new Dictionary<string, string>();
         sectionName = section;
-        if(cache != null){
-            if(cache.ContainsKey(file + '/' + section) == true){
+        if (cache != null)
+        {
+            if (cache.ContainsKey(file + '/' + section) == true)
+            {
                 cached = cache[file + '/' + section];
                 Data = cached.Data;
                 elements = cached.elements;
@@ -98,11 +100,11 @@ public class Scaffold
         if (cached.elements.Count == 0)
         {
             elements = new List<ScaffoldElement>();
-            
+
             //try loading file from disk
-            if (File.Exists(file))
+            if (File.Exists(MapPath(file)))
             {
-                HTML = File.ReadAllText(file);
+                HTML = File.ReadAllText(MapPath(file));
             }
             if (HTML.Trim() == "") { return; }
 
@@ -133,7 +135,8 @@ public class Scaffold
 
             //get scaffold from html code
             var dirty = true;
-            while (dirty == true) {
+            while (dirty == true)
+            {
                 dirty = false;
                 var arr = HTML.Split("{{");
                 var i = 0;
@@ -150,7 +153,7 @@ public class Scaffold
                 //first, load all HTML includes
                 for (var x = 0; x < arr.Length; x++)
                 {
-                    if(x == 0 && HTML.IndexOf(arr[x]) == 0)
+                    if (x == 0 && HTML.IndexOf(arr[x]) == 0)
                     {
                         arr[x] = "{!}" + arr[x];
                     }
@@ -169,11 +172,11 @@ public class Scaffold
                             var ht = newScaff.HTML;
                             var y = 0;
                             var prefix = scaff.name + "-";
-                            while(y >= 0)
+                            while (y >= 0)
                             {
                                 y = ht.IndexOf("{{", y);
-                                if(y < 0) { break; }
-                                if(ht.Substring(y+2,1) == "/")
+                                if (y < 0) { break; }
+                                if (ht.Substring(y + 2, 1) == "/")
                                 {
                                     ht = ht.Substring(0, y + 3) + prefix + ht.Substring(y + 3);
                                 }
@@ -189,9 +192,9 @@ public class Scaffold
                             break;
                         }
                     }
-                    
+
                 }
-                if(dirty == false)
+                if (dirty == false)
                 {
                     //next, process variables & blocks
                     for (var x = 0; x < arr.Length; x++)
@@ -221,7 +224,8 @@ public class Scaffold
                 }
             }
             //cache the scaffold data
-            if(cache != null){
+            if (cache != null)
+            {
                 var scaffold = new SerializedScaffold();
                 scaffold.Data = Data;
                 scaffold.elements = elements;
@@ -232,7 +236,7 @@ public class Scaffold
 
     private string JoinHTML(string[] html)
     {
-        for(var x = 0; x < html.Length; x++)
+        for (var x = 0; x < html.Length; x++)
         {
             switch (html[x].Substring(0, 3))
             {
@@ -370,7 +374,7 @@ public class Scaffold
     public string Get(string name)
     {
         var index = elements.FindIndex(c => c.name == name);
-        if(index < 0) { return "";  }
+        if (index < 0) { return ""; }
         var part = elements[index];
         var html = part.htm;
         for (var x = index + 1; x < elements.Count; x++)
@@ -399,7 +403,8 @@ public class Scaffold
         return html;
     }
 
-    public static T DeepCopy<T>(T obj)
+    private static T DeepCopy<T>(T obj)
+
     {
         if (!typeof(T).IsSerializable)
         {
@@ -421,9 +426,10 @@ public class Scaffold
             memoryStream.Close();
         }
         return result;
+
     }
 
-    public string MapPath(string strPath = "")
+    private string MapPath(string strPath = "")
     {
         if (_path == "") { _path = Path.GetFullPath(".") + "\\"; }
         var str = strPath.Replace("/", "\\");
