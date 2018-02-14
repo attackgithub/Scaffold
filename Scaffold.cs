@@ -68,7 +68,7 @@ public class Scaffold
     public ScaffoldChild _child = null;
     private string _path = "";
 
-    public ScaffoldChild Child(string id)
+    public ScaffoldChild Child(string id) 
     {
         return new ScaffoldChild(this, id);
     }
