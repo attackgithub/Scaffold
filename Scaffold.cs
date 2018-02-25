@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Runtime.Serialization.Formatters.Binary;
+using Newtonsoft.Json;
 
 [Serializable]
 public struct SerializedScaffold
@@ -149,6 +150,7 @@ public class Scaffold
                 // {{title}}                        = variable
                 // {{address}} {{/address}}         = block
                 // {{button "/ui/button-medium"}}   = HTML include
+                // {{button "/ui/button" title:"save", onclick="do.this()"}} = HTML include with variables
 
                 //first, load all HTML includes
                 for (var x = 0; x < arr.Length; x++)
@@ -165,11 +167,27 @@ public class Scaffold
                         {
                             scaff.name = arr[x].Substring(0, u - 1).Trim();
                             u2 = arr[x].IndexOf('"', u + 2);
+
                             //load the scaffold HTML
                             var newScaff = new Scaffold(arr[x].Substring(u + 1, u2 - u - 1), "", cache);
 
+                            //check for HTML include variables
+                            if (i - u2 > 0)
+                            {
+                                var vars = arr[x].Substring(u2 + 1, i - (u2 + 1)).Trim();
+                                if (vars.IndexOf(":") > 0)
+                                {
+                                    //HTML include variables exist
+                                    var kv = (Dictionary<string, string>)JsonConvert.DeserializeObject("{" + vars + "}", typeof(Dictionary<string, string>));
+                                    foreach(var kvp in kv)
+                                    {
+                                        newScaff.Data[kvp.Key] = kvp.Value;
+                                    }
+                                }
+                            }
+
                             //rename child scaffold variables with a prefix of "scaff.name-"
-                            var ht = newScaff.HTML;
+                            var ht = newScaff.Render(newScaff.Data, false);
                             var y = 0;
                             var prefix = scaff.name + "-";
                             while (y >= 0)
@@ -226,9 +244,11 @@ public class Scaffold
             //cache the scaffold data
             if (cache != null)
             {
-                var scaffold = new SerializedScaffold();
-                scaffold.Data = Data;
-                scaffold.elements = elements;
+                var scaffold = new SerializedScaffold
+                {
+                    Data = Data,
+                    elements = elements
+                };
                 cache.Add(file + '/' + section, scaffold);
             }
         }
@@ -258,7 +278,7 @@ public class Scaffold
         return Render(Data);
     }
 
-    public string Render(Dictionary<string, string> nData)
+    public string Render(Dictionary<string, string> nData, bool hideElements = true)
     {
         //deserialize list of elements since we will be manipulating the list,
         //so we don't want to permanently mutate the public elements array
@@ -282,10 +302,12 @@ public class Scaffold
                         if (elems[y].name == "/" + elems[x].name)
                         {
                             //add enclosed group of HTML to list for removing
-                            List<string> closed = new List<string>();
-                            closed.Add(elems[x].name);
-                            closed.Add(x.ToString());
-                            closed.Add(y.ToString());
+                            List<string> closed = new List<string>
+                            {
+                                elems[x].name,
+                                x.ToString(),
+                                y.ToString()
+                            };
 
                             if (nData.ContainsKey(elems[x].name) == true)
                             {
@@ -308,32 +330,35 @@ public class Scaffold
                 }
             }
 
-            //remove all groups of HTML in list that should not be displayed
-            List<int> removeIndexes = new List<int>();
-            bool isInList = false;
-            for (int x = 0; x < closing.Count; x++)
+            if(hideElements == true)
             {
-                if (closing[x][3] != "true")
+                //remove all groups of HTML in list that should not be displayed
+                List<int> removeIndexes = new List<int>();
+                bool isInList = false;
+                for (int x = 0; x < closing.Count; x++)
                 {
-                    //add range of indexes from closing to the removeIndexes list
-                    for (int y = int.Parse(closing[x][1]); y < int.Parse(closing[x][2]); y++)
+                    if (closing[x][3] != "true")
                     {
-                        isInList = false;
-                        for (int z = 0; z < removeIndexes.Count; z++)
+                        //add range of indexes from closing to the removeIndexes list
+                        for (int y = int.Parse(closing[x][1]); y < int.Parse(closing[x][2]); y++)
                         {
-                            if (removeIndexes[z] == y) { isInList = true; break; }
+                            isInList = false;
+                            for (int z = 0; z < removeIndexes.Count; z++)
+                            {
+                                if (removeIndexes[z] == y) { isInList = true; break; }
+                            }
+                            if (isInList == false) { removeIndexes.Add(y); }
                         }
-                        if (isInList == false) { removeIndexes.Add(y); }
                     }
                 }
-            }
 
-            //physically remove HTML list items from scaffold
-            int offset = 0;
-            for (int z = 0; z < removeIndexes.Count; z++)
-            {
-                elems.RemoveAt(removeIndexes[z] - offset);
-                offset += 1;
+                //physically remove HTML list items from scaffold
+                int offset = 0;
+                for (int z = 0; z < removeIndexes.Count; z++)
+                {
+                    elems.RemoveAt(removeIndexes[z] - offset);
+                    offset += 1;
+                }
             }
 
             //finally, replace scaffold variables with custom data
@@ -361,7 +386,7 @@ public class Scaffold
                 else
                 {
                     //passively add htm, ignoring scaffold variable
-                    scaff.Append(elems[x].htm);
+                    scaff.Append((hideElements == true ? "" : (elems[x].name != "" ? "{{" + elems[x].name + "}}" : "")) + elems[x].htm);
                 }
             }
 
