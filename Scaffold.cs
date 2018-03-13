@@ -17,6 +17,7 @@ public struct SerializedScaffold
 public struct ScaffoldElement
 {
     public string name;
+    public string path;
     public string htm;
 }
 
@@ -84,7 +85,7 @@ public class Scaffold
         Setup(file, section, cache);
     }
 
-    private void Setup(string file, string section = "", Dictionary<String, SerializedScaffold> cache = null)
+    private void Setup(string file, string section = "", Dictionary<String, SerializedScaffold> cache = null, bool loadPartials = true)
     {
         SerializedScaffold cached = new SerializedScaffold() { elements = new List<ScaffoldElement>() };
         Data = new Dictionary<string, string>();
@@ -163,8 +164,9 @@ public class Scaffold
                     {
                         i = arr[x].IndexOf("}}");
                         u = arr[x].IndexOf('"');
-                        if (i > 0 && u > 0 && u < i - 2)
+                        if (i > 0 && u > 0 && u < i - 2 && loadPartials == true)
                         {
+                            //read partial include & load HTML from another file
                             scaff.name = arr[x].Substring(0, u - 1).Trim();
                             u2 = arr[x].IndexOf('"', u + 2);
 
@@ -217,8 +219,9 @@ public class Scaffold
                     //next, process variables & blocks
                     for (var x = 0; x < arr.Length; x++)
                     {
-                        if (x == 0 && HTML.IndexOf(arr[x].Substring(3)) == 0)
+                        if (x == 0 && HTML.IndexOf(arr[0].Substring(3)) == 0)//skip "{!}" using substring
                         {
+                            //first element is HTML only
                             elements.Add(new ScaffoldElement() { htm = arr[x].Substring(3), name = "" });
                         }
                         else if (arr[x].Trim() != "")
@@ -230,6 +233,18 @@ public class Scaffold
                             {
                                 scaff.htm = arr[x].Substring(i + 2);
                                 scaff.name = arr[x].Substring(0, i).Trim();
+
+                                //get optional path stored within variable tag (if exists)
+                                //e.g. {{my-component "list"}}
+                                if(u > 0 && u < i - 2)
+                                {
+                                    u2 = arr[x].IndexOf('"', u + 2);
+                                    if (i - u2 > 0)
+                                    {
+                                        var data = arr[x].Substring(u + 1, u2 - u - 1);
+                                        scaff.path = data;
+                                    }
+                                }
                             }
                             else
                             {
