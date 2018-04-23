@@ -47,7 +47,9 @@ public class ScaffoldDictionary : Dictionary<string, string>
         _id = id;
     }
 
+#pragma warning disable CS0108 // Member hides inherited member; missing new keyword
     public string this[string key]
+#pragma warning restore CS0108 // Member hides inherited member; missing new keyword
     {
         get
         {
@@ -469,11 +471,11 @@ public class Scaffold
 
     }
 
-    private string MapPath(string strPath = "")
+    private static string MapPath(string strPath = "")
     {
-        if (_path == "") { _path = Path.GetFullPath(".") + "\\"; }
+        var path = Path.GetFullPath(".") + "\\";
         var str = strPath.Replace("/", "\\");
         if (str.Substring(0, 1) == "\\") { str = str.Substring(1); }
-        return _path + str;
+        return path + str;
     }
 }
