@@ -70,7 +70,6 @@ public class Scaffold
     public string HTML = "";
     public string sectionName = "";
     public ScaffoldChild _child = null;
-    private string _path = "";
 
     public ScaffoldChild Child(string id) 
     {
