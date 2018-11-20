@@ -38,6 +38,29 @@ scaffold.Data["content"] = "Hello World!";
 return scaffold.Render();
 ```
 
+### Bind Objects to Templates
+You can bind complex C# objects to templates
+
+```
+<div class="user">
+	<span class="name">{{user.name}}</span>
+	<img src="{{user.image}}"/>
+</div>
+```
+
+Now, you can use `Scaffold` to bind variables within your html file to C# objects.
+
+```
+var scaffold = new Scaffold("/Views/UI/header.html")
+scaffold.Bind(new UI.Header(){
+	User = new UI.User(){
+		Name = myUser.Name,
+		Image = myUser.Photo == 1 ? "/images/users/" + myUser.Id + ".jpg" : "/images/nophoto.jpg"
+	}
+});
+return scaffold.Render();
+```
+
 ### Import partial Templates
 
 You can also import partial templates from within a template
