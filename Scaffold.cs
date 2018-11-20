@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.ComponentModel;
 using System.Runtime.Serialization.Formatters.Binary;
 using Newtonsoft.Json;
 
@@ -33,8 +34,6 @@ public class ScaffoldChild
         _id = id;
         Data = new ScaffoldDictionary(parent, id);
     }
-
-
 }
 
 public class ScaffoldDictionary : Dictionary<string, string>
@@ -76,14 +75,63 @@ public class Scaffold
         return new ScaffoldChild(this, id);
     }
 
+    /// <summary>
+    /// Use a template file to bind data and replace mustache variables with data, e.g. {{my-name}} is replaced with value of Scaffold.Data["my-name"]
+    /// </summary>
+    /// <param name="file">relative path to the template file</param>
+    /// <param name="cache">Dictionary object used to save cached, parsed template to</param>
     public Scaffold(string file, Dictionary<String, SerializedScaffold> cache = null)
     {
         Setup(file, "", cache);
     }
 
+    /// <summary>
+    /// Use a template file to bind data and replace mustache variables with data, e.g. {{my-name}} is replaced with value of Scaffold.Data["my-name"]
+    /// </summary>
+    /// <param name="file">relative path to the template file</param>
+    /// <param name="section">section name within the template file to load, e.g. {{my-section}} ... {{/my-section}}</param>
+    /// <param name="cache">Dictionary object used to save cached, parsed template to</param>
     public Scaffold(string file, string section, Dictionary<String, SerializedScaffold> cache = null)
     {
         Setup(file, section, cache);
+    }
+
+    /// <summary>
+    /// Binds an object to the scaffold template. Use e.g. {{myprop}} or {{myobj.myprop}} to represent object fields & properties in template
+    /// </summary>
+    /// <param name="obj"></param>
+    public void Bind(object obj, string root = "")
+    {
+        if (obj != null)
+        {
+            foreach (PropertyDescriptor property in TypeDescriptor.GetProperties(obj))
+            {
+                object val = property.GetValue(obj);
+                var name = (root != "" ? root + "." : "") + property.Name.ToLower();
+                if (val == null)
+                {
+                    //do nothing
+                }
+                else if (val is string || val is int || val is long || val is double || val is decimal || val is short)
+                {
+                    //add property value to dictionary
+                    Data[name] = val.ToString();
+                }
+                else if (val is bool)
+                {
+                    Data[name] = (bool)val == true ? "1" : "0";
+                }
+                else if (val is DateTime)
+                {
+                    Data[name] = ((DateTime)val).ToShortDateString() + " " + ((DateTime)val).ToShortTimeString();
+                }
+                else if (val is object)
+                {
+                    //recurse child object for properties
+                    Bind(val, name);
+                }
+            }
+        }
     }
 
     private void Setup(string file, string section = "", Dictionary<String, SerializedScaffold> cache = null, bool loadPartials = true)
