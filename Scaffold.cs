@@ -34,6 +34,44 @@ public class ScaffoldChild
         _id = id;
         Data = new ScaffoldDictionary(parent, id);
     }
+
+    /// <summary>
+    /// Binds an object to the scaffold template. Use e.g. {{myprop}} or {{myobj.myprop}} to represent object fields & properties in template
+    /// </summary>
+    /// <param name="obj"></param>
+    public void Bind(object obj, string root = "")
+    {
+        if (obj != null)
+        {
+            foreach (PropertyDescriptor property in TypeDescriptor.GetProperties(obj))
+            {
+                object val = property.GetValue(obj);
+                var name = (root != "" ? root + "." : "") + property.Name.ToLower();
+                if (val == null)
+                {
+                    Data[name] = "";
+                }
+                else if (val is string || val is int || val is long || val is double || val is decimal || val is short)
+                {
+                    //add property value to dictionary
+                    Data[name] = val.ToString();
+                }
+                else if (val is bool)
+                {
+                    Data[name] = (bool)val == true ? "1" : "0";
+                }
+                else if (val is DateTime)
+                {
+                    Data[name] = ((DateTime)val).ToShortDateString() + " " + ((DateTime)val).ToShortTimeString();
+                }
+                else if (val is object)
+                {
+                    //recurse child object for properties
+                    Bind(val, name);
+                }
+            }
+        }
+    }
 }
 
 public class ScaffoldDictionary : Dictionary<string, string>
@@ -110,7 +148,7 @@ public class Scaffold
                 var name = (root != "" ? root + "." : "") + property.Name.ToLower();
                 if (val == null)
                 {
-                    //do nothing
+                    Data[name] = "";
                 }
                 else if (val is string || val is int || val is long || val is double || val is decimal || val is short)
                 {
