@@ -22,6 +22,11 @@ public struct ScaffoldElement
     public string htm;
 }
 
+public static class ScaffoldCache
+{
+    public static Dictionary<string, SerializedScaffold> cache { get; set; }
+}
+
 public class ScaffoldChild
 {
     private Scaffold _parent;
@@ -118,7 +123,7 @@ public class Scaffold
     /// </summary>
     /// <param name="file">relative path to the template file</param>
     /// <param name="cache">Dictionary object used to save cached, parsed template to</param>
-    public Scaffold(string file, Dictionary<String, SerializedScaffold> cache = null)
+    public Scaffold(string file, Dictionary<string, SerializedScaffold> cache = null)
     {
         Setup(file, "", cache);
     }
@@ -129,7 +134,7 @@ public class Scaffold
     /// <param name="file">relative path to the template file</param>
     /// <param name="section">section name within the template file to load, e.g. {{my-section}} ... {{/my-section}}</param>
     /// <param name="cache">Dictionary object used to save cached, parsed template to</param>
-    public Scaffold(string file, string section, Dictionary<String, SerializedScaffold> cache = null)
+    public Scaffold(string file, string section, Dictionary<string, SerializedScaffold> cache = null)
     {
         Setup(file, section, cache);
     }
@@ -172,11 +177,15 @@ public class Scaffold
         }
     }
 
-    private void Setup(string file, string section = "", Dictionary<String, SerializedScaffold> cache = null, bool loadPartials = true)
+    private void Setup(string file, string section = "", Dictionary<string, SerializedScaffold> cache = null, bool loadPartials = true)
     {
         SerializedScaffold cached = new SerializedScaffold() { elements = new List<ScaffoldElement>() };
         Data = new Dictionary<string, string>();
         sectionName = section;
+        if(cache == null && ScaffoldCache.cache != null)
+        {
+            cache = ScaffoldCache.cache;
+        }
         if (cache != null)
         {
             if (cache.ContainsKey(file + '/' + section) == true)
