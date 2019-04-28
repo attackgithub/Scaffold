@@ -115,12 +115,44 @@ In the above example, the default value for the variable `username` that exists 
 
 ```
 var scaffold = new Scaffold("/Views/home.html")
-if(User.id > 0)
+if(User.Id > 0)
 {
-	scaffold.Child("header").Data["username"] = User.name;
+	scaffold.Child("header").Data["username"] = User.Name;
 }
 return scaffold.Render();
 ```
 
-`Scaffold` can replace the default value with the user's name if the user has logged into their account.
+In the above example,`Scaffold` will replace the default value with the user's name if the user has logged into their account.
+
+
+### Variable properties
+Variables can contain custom properties that may determine what to render in place of the variable.
+
+Source for `Views/users.html`
+```
+<html>
+	<head></head>
+	<body>
+		{{user-list filter:"Mark", length:"10"}}
+	</body>
+</html>
+```
+
+In the above example, the app will generate a user list based on a search filter on the user name and will display a maximum of 10 results.
+
+```
+var scaffold = new Scaffold("/Views/users.html")
+var index = scaffold.fields["user-list"].First();
+var elem = scaffold.elements[index];
+var filter = elem.vars["filter"] ?? "";
+var length = elem.vars["length"] ?? 20;
+
+// generate user list
+var userlist = new StringBuilder();
+//...load users into userlist, then...
+scaffold.Data["user-list"] = userlist.ToString();
+return scaffold.Render();
+```
+
+In the above example,`Scaffold` will get properties for the *user-list* variable, then generate a user list based on the given *filter* & *length* properties
 

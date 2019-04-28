@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Text;
 using System.ComponentModel;
@@ -11,6 +12,7 @@ public struct SerializedScaffold
 {
     public Dictionary<string, string> Data;
     public Dictionary<string, string> arguments;
+    public Dictionary<string, int[]> fields;
     public List<ScaffoldElement> elements;
 }
 
@@ -20,6 +22,7 @@ public struct ScaffoldElement
     public string name;
     public string path;
     public string htm;
+    public Dictionary<string, string> vars;
 }
 
 public static class ScaffoldCache
@@ -29,15 +32,22 @@ public static class ScaffoldCache
 
 public class ScaffoldChild
 {
-    private Scaffold _parent;
-    private string _id;
     public ScaffoldDictionary Data;
+    private Scaffold _parent;
+    public Dictionary<string, int[]> fields = new Dictionary<string, int[]>();
 
     public ScaffoldChild(Scaffold parent, string id)
     {
         _parent = parent;
-        _id = id;
         Data = new ScaffoldDictionary(parent, id);
+        //load related fields
+        foreach (var item in parent.fields)
+        {
+            if(item.Key.IndexOf(id + "-") == 0)
+            {
+                fields.Add(item.Key.Replace(id + "-", ""), item.Value);
+            }
+        }
     }
 
     /// <summary>
@@ -108,14 +118,22 @@ public class Scaffold
 {
     public Dictionary<string, string> Data;
     public List<ScaffoldElement> elements;
+    public Dictionary<string, int[]> fields = new Dictionary<string, int[]>();
     public string serializedElements;
     public string HTML = "";
     public string sectionName = "";
-    public ScaffoldChild _child = null;
+    public Dictionary<string, ScaffoldChild> children = null;
 
     public ScaffoldChild Child(string id) 
     {
-        return new ScaffoldChild(this, id);
+        if (children == null) {
+            children = new Dictionary<string, ScaffoldChild>();
+        }
+        if (!children.ContainsKey(id))
+        { 
+            children.Add(id, new ScaffoldChild(this, id));
+        }
+        return children[id];
     }
 
     /// <summary>
@@ -193,6 +211,7 @@ public class Scaffold
                 cached = cache[file + '/' + section];
                 Data = cached.Data;
                 elements = cached.elements;
+                fields = cached.fields;
             }
         }
         if (cached.elements.Count == 0)
@@ -238,6 +257,8 @@ public class Scaffold
                 dirty = false;
                 var arr = HTML.Split("{{");
                 var i = 0;
+                var s = 0;
+                var c = 0;
                 var u = 0;
                 var u2 = 0;
                 ScaffoldElement scaff;
@@ -259,8 +280,9 @@ public class Scaffold
                     else if (arr[x].Trim() != "")
                     {
                         i = arr[x].IndexOf("}}");
+                        s = arr[x].IndexOf(':');
                         u = arr[x].IndexOf('"');
-                        if (i > 0 && u > 0 && u < i - 2 && loadPartials == true)
+                        if (i > 0 && u > 0 && u < i - 2 && (s == -1 || s > u) && loadPartials == true)
                         {
                             //read partial include & load HTML from another file
                             scaff.name = arr[x].Substring(0, u - 1).Trim();
@@ -276,10 +298,15 @@ public class Scaffold
                                 if (vars.IndexOf(":") > 0)
                                 {
                                     //HTML include variables exist
-                                    var kv = (Dictionary<string, string>)JsonConvert.DeserializeObject("{" + vars + "}", typeof(Dictionary<string, string>));
-                                    foreach(var kvp in kv)
+                                    try
                                     {
-                                        newScaff.Data[kvp.Key] = kvp.Value;
+                                        var kv = (Dictionary<string, string>)JsonConvert.DeserializeObject("{" + vars + "}", typeof(Dictionary<string, string>));
+                                        foreach (var kvp in kv)
+                                        {
+                                            newScaff.Data[kvp.Key] = kvp.Value;
+                                        }
+                                    }
+                                    catch (Exception) {
                                     }
                                 }
                             }
@@ -323,16 +350,41 @@ public class Scaffold
                         else if (arr[x].Trim() != "")
                         {
                             i = arr[x].IndexOf("}}");
+                            s = arr[x].IndexOf(' ');
+                            c = arr[x].IndexOf(':');
                             u = arr[x].IndexOf('"');
                             scaff = new ScaffoldElement();
                             if (i > 0)
                             {
                                 scaff.htm = arr[x].Substring(i + 2);
-                                scaff.name = arr[x].Substring(0, i).Trim();
 
+                                //get variable name
+                                if (s < i && s > 0)
+                                {
+                                    //found space
+                                    scaff.name = arr[x].Substring(0, s).Trim();
+                                }
+                                else
+                                {
+                                    //found tag end
+                                    scaff.name = arr[x].Substring(0, i).Trim();
+                                }
+                                
+                                if (fields.ContainsKey(scaff.name))
+                                {
+                                    //add element index to existing field
+                                    var field = fields[scaff.name];
+                                    fields[scaff.name] = field.Append(elements.Count).ToArray();
+                                }
+                                else
+                                {
+                                    //add field with element index
+                                    fields.Add(scaff.name, new int[] { elements.Count });
+                                }
+                                
                                 //get optional path stored within variable tag (if exists)
                                 //e.g. {{my-component "list"}}
-                                if(u > 0 && u < i - 2)
+                                if(u > 0 && u < i - 2 && (c == -1 || c > u))
                                 {
                                     u2 = arr[x].IndexOf('"', u + 2);
                                     if (i - u2 > 0)
@@ -340,6 +392,17 @@ public class Scaffold
                                         var data = arr[x].Substring(u + 1, u2 - u - 1);
                                         scaff.path = data;
                                     }
+                                }else if(s < i && s > 0)
+                                {
+                                    //get optional variables stored within tag
+                                    var vars = arr[x].Substring(s + 1, i - s - 1);
+                                    try
+                                    {
+                                        scaff.vars = (Dictionary<string, string>)JsonConvert.DeserializeObject("{" + vars + "}", typeof(Dictionary<string, string>));
+                                    }
+                                    catch (Exception) {
+                                    }
+                                    
                                 }
                             }
                             else
@@ -393,7 +456,7 @@ public class Scaffold
     {
         //deserialize list of elements since we will be manipulating the list,
         //so we don't want to permanently mutate the public elements array
-        var elems = (List<ScaffoldElement>)DeepCopy<List<ScaffoldElement>>(elements);
+        var elems = DeepCopy(elements);
         if (elems.Count > 0)
         {
             //render scaffold with paired nData data
@@ -547,7 +610,7 @@ public class Scaffold
             throw new Exception("The source object must be serializable");
         }
 
-        if (Object.ReferenceEquals(obj, null))
+        if (obj == null)
         {
             throw new Exception("The source object must not be null");
         }
