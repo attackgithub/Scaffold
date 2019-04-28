@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Text;
 using System.ComponentModel;
@@ -11,6 +12,7 @@ public struct SerializedScaffold
 {
     public Dictionary<string, string> Data;
     public Dictionary<string, string> arguments;
+    public Dictionary<string, int[]> fields;
     public List<ScaffoldElement> elements;
 }
 
@@ -29,15 +31,22 @@ public static class ScaffoldCache
 
 public class ScaffoldChild
 {
-    private Scaffold _parent;
-    private string _id;
     public ScaffoldDictionary Data;
+    private Scaffold _parent;
+    public Dictionary<string, int[]> fields = new Dictionary<string, int[]>();
 
     public ScaffoldChild(Scaffold parent, string id)
     {
         _parent = parent;
-        _id = id;
         Data = new ScaffoldDictionary(parent, id);
+        //load related fields
+        foreach (var item in parent.fields)
+        {
+            if(item.Key.IndexOf(id + "-") == 0)
+            {
+                fields.Add(item.Key.Replace(id + "-", ""), item.Value);
+            }
+        }
     }
 
     /// <summary>
@@ -108,14 +117,22 @@ public class Scaffold
 {
     public Dictionary<string, string> Data;
     public List<ScaffoldElement> elements;
+    public Dictionary<string, int[]> fields = new Dictionary<string, int[]>();
     public string serializedElements;
     public string HTML = "";
     public string sectionName = "";
-    public ScaffoldChild _child = null;
+    public Dictionary<string, ScaffoldChild> children = null;
 
     public ScaffoldChild Child(string id) 
     {
-        return new ScaffoldChild(this, id);
+        if (children == null) {
+            children = new Dictionary<string, ScaffoldChild>();
+        }
+        if (!children.ContainsKey(id))
+        { 
+            children.Add(id, new ScaffoldChild(this, id));
+        }
+        return children[id];
     }
 
     /// <summary>
@@ -193,6 +210,7 @@ public class Scaffold
                 cached = cache[file + '/' + section];
                 Data = cached.Data;
                 elements = cached.elements;
+                fields = cached.fields;
             }
         }
         if (cached.elements.Count == 0)
@@ -329,6 +347,18 @@ public class Scaffold
                             {
                                 scaff.htm = arr[x].Substring(i + 2);
                                 scaff.name = arr[x].Substring(0, i).Trim();
+                                if (fields.ContainsKey(scaff.name))
+                                {
+                                    //add element index to existing field
+                                    var field = fields[scaff.name];
+                                    fields[scaff.name] = field.Append(elements.Count).ToArray();
+                                }
+                                else
+                                {
+                                    //add field with element index
+                                    fields.Add(scaff.name, new int[] { elements.Count });
+                                }
+                                
 
                                 //get optional path stored within variable tag (if exists)
                                 //e.g. {{my-component "list"}}
