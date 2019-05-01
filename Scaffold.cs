@@ -370,16 +370,19 @@ public class Scaffold
                                     scaff.name = arr[x].Substring(0, i).Trim();
                                 }
                                 
-                                if (fields.ContainsKey(scaff.name))
+                                if(scaff.name.IndexOf('/') < 0)
                                 {
-                                    //add element index to existing field
-                                    var field = fields[scaff.name];
-                                    fields[scaff.name] = field.Append(elements.Count).ToArray();
-                                }
-                                else
-                                {
-                                    //add field with element index
-                                    fields.Add(scaff.name, new int[] { elements.Count });
+                                    if (fields.ContainsKey(scaff.name))
+                                    {
+                                        //add element index to existing field
+                                        var field = fields[scaff.name];
+                                        fields[scaff.name] = field.Append(elements.Count).ToArray();
+                                    }
+                                    else
+                                    {
+                                        //add field with element index
+                                        fields.Add(scaff.name, new int[] { elements.Count });
+                                    }
                                 }
                                 
                                 //get optional path stored within variable tag (if exists)
