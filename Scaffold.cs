@@ -22,6 +22,7 @@ public struct ScaffoldElement
     public string name;
     public string path;
     public string htm;
+    public Dictionary<string, string> vars;
 }
 
 public static class ScaffoldCache
@@ -117,6 +118,7 @@ public class Scaffold
 {
     public Dictionary<string, string> Data;
     public List<ScaffoldElement> elements;
+    public Dictionary<string, string> partials = new Dictionary<string, string>();
     public Dictionary<string, int[]> fields = new Dictionary<string, int[]>();
     public string serializedElements;
     public string HTML = "";
@@ -256,6 +258,8 @@ public class Scaffold
                 dirty = false;
                 var arr = HTML.Split("{{");
                 var i = 0;
+                var s = 0;
+                var c = 0;
                 var u = 0;
                 var u2 = 0;
                 ScaffoldElement scaff;
@@ -277,15 +281,18 @@ public class Scaffold
                     else if (arr[x].Trim() != "")
                     {
                         i = arr[x].IndexOf("}}");
+                        s = arr[x].IndexOf(':');
                         u = arr[x].IndexOf('"');
-                        if (i > 0 && u > 0 && u < i - 2 && loadPartials == true)
+                        if (i > 0 && u > 0 && u < i - 2 && (s == -1 || s > u) && loadPartials == true)
                         {
                             //read partial include & load HTML from another file
                             scaff.name = arr[x].Substring(0, u - 1).Trim();
                             u2 = arr[x].IndexOf('"', u + 2);
+                            var partial_path = arr[x].Substring(u + 1, u2 - u - 1);
+                            partials.Add(scaff.name, partial_path);
 
                             //load the scaffold HTML
-                            var newScaff = new Scaffold(arr[x].Substring(u + 1, u2 - u - 1), "", cache);
+                            var newScaff = new Scaffold(partial_path, "", cache);
 
                             //check for HTML include variables
                             if (i - u2 > 0)
@@ -294,10 +301,15 @@ public class Scaffold
                                 if (vars.IndexOf(":") > 0)
                                 {
                                     //HTML include variables exist
-                                    var kv = (Dictionary<string, string>)JsonConvert.DeserializeObject("{" + vars + "}", typeof(Dictionary<string, string>));
-                                    foreach(var kvp in kv)
+                                    try
                                     {
-                                        newScaff.Data[kvp.Key] = kvp.Value;
+                                        var kv = (Dictionary<string, string>)JsonConvert.DeserializeObject("{" + vars + "}", typeof(Dictionary<string, string>));
+                                        foreach (var kvp in kv)
+                                        {
+                                            newScaff.Data[kvp.Key] = kvp.Value;
+                                        }
+                                    }
+                                    catch (Exception) {
                                     }
                                 }
                             }
@@ -341,28 +353,44 @@ public class Scaffold
                         else if (arr[x].Trim() != "")
                         {
                             i = arr[x].IndexOf("}}");
+                            s = arr[x].IndexOf(' ');
+                            c = arr[x].IndexOf(':');
                             u = arr[x].IndexOf('"');
                             scaff = new ScaffoldElement();
                             if (i > 0)
                             {
                                 scaff.htm = arr[x].Substring(i + 2);
-                                scaff.name = arr[x].Substring(0, i).Trim();
-                                if (fields.ContainsKey(scaff.name))
+
+                                //get variable name
+                                if (s < i && s > 0)
                                 {
-                                    //add element index to existing field
-                                    var field = fields[scaff.name];
-                                    fields[scaff.name] = field.Append(elements.Count).ToArray();
+                                    //found space
+                                    scaff.name = arr[x].Substring(0, s).Trim();
                                 }
                                 else
                                 {
-                                    //add field with element index
-                                    fields.Add(scaff.name, new int[] { elements.Count });
+                                    //found tag end
+                                    scaff.name = arr[x].Substring(0, i).Trim();
                                 }
                                 
-
+                                if(scaff.name.IndexOf('/') < 0 && !partials.Keys.Any(a => scaff.name.IndexOf(a + "-") == 0))
+                                {   
+                                    if (fields.ContainsKey(scaff.name))
+                                    {
+                                        //add element index to existing field
+                                        var field = fields[scaff.name];
+                                        fields[scaff.name] = field.Append(elements.Count).ToArray();
+                                    }
+                                    else
+                                    {
+                                        //add field with element index
+                                        fields.Add(scaff.name, new int[] { elements.Count });
+                                    }
+                                }
+                                
                                 //get optional path stored within variable tag (if exists)
                                 //e.g. {{my-component "list"}}
-                                if(u > 0 && u < i - 2)
+                                if(u > 0 && u < i - 2 && (c == -1 || c > u))
                                 {
                                     u2 = arr[x].IndexOf('"', u + 2);
                                     if (i - u2 > 0)
@@ -370,6 +398,17 @@ public class Scaffold
                                         var data = arr[x].Substring(u + 1, u2 - u - 1);
                                         scaff.path = data;
                                     }
+                                }else if(s < i && s > 0)
+                                {
+                                    //get optional variables stored within tag
+                                    var vars = arr[x].Substring(s + 1, i - s - 1);
+                                    try
+                                    {
+                                        scaff.vars = (Dictionary<string, string>)JsonConvert.DeserializeObject("{" + vars + "}", typeof(Dictionary<string, string>));
+                                    }
+                                    catch (Exception) {
+                                    }
+                                    
                                 }
                             }
                             else
@@ -423,7 +462,7 @@ public class Scaffold
     {
         //deserialize list of elements since we will be manipulating the list,
         //so we don't want to permanently mutate the public elements array
-        var elems = (List<ScaffoldElement>)DeepCopy<List<ScaffoldElement>>(elements);
+        var elems = DeepCopy(elements);
         if (elems.Count > 0)
         {
             //render scaffold with paired nData data
@@ -577,7 +616,7 @@ public class Scaffold
             throw new Exception("The source object must be serializable");
         }
 
-        if (Object.ReferenceEquals(obj, null))
+        if (obj == null)
         {
             throw new Exception("The source object must not be null");
         }
