@@ -11,9 +11,9 @@ using Newtonsoft.Json;
 public struct SerializedScaffold
 {
     public Dictionary<string, string> Data;
-    public Dictionary<string, string> arguments;
     public Dictionary<string, int[]> fields;
     public List<ScaffoldElement> elements;
+    public List<ScaffoldPartial> partials;
 }
 
 [Serializable]
@@ -43,7 +43,7 @@ public class ScaffoldChild
         //load related fields
         foreach (var item in parent.fields)
         {
-            if(item.Key.IndexOf(id + "-") == 0)
+            if (item.Key.IndexOf(id + "-") == 0)
             {
                 fields.Add(item.Key.Replace(id + "-", ""), item.Value);
             }
@@ -114,24 +114,33 @@ public class ScaffoldDictionary : Dictionary<string, string>
     }
 }
 
+[Serializable]
+public class ScaffoldPartial
+{
+    public string Name { get; set; }
+    public string Path { get; set; }
+    public string Prefix { get; set; } //prefix used in html variable names after importing the partial
+}
+
 public class Scaffold
 {
     public Dictionary<string, string> Data;
     public List<ScaffoldElement> elements;
-    public Dictionary<string, string> partials = new Dictionary<string, string>();
+    public List<ScaffoldPartial> partials = new List<ScaffoldPartial>();
     public Dictionary<string, int[]> fields = new Dictionary<string, int[]>();
     public string serializedElements;
     public string HTML = "";
     public string sectionName = "";
-    public Dictionary<string, ScaffoldChild> children = null;
+    private Dictionary<string, ScaffoldChild> children = null;
 
-    public ScaffoldChild Child(string id) 
+    public ScaffoldChild Child(string id)
     {
-        if (children == null) {
+        if (children == null)
+        {
             children = new Dictionary<string, ScaffoldChild>();
         }
         if (!children.ContainsKey(id))
-        { 
+        {
             children.Add(id, new ScaffoldChild(this, id));
         }
         return children[id];
@@ -201,7 +210,7 @@ public class Scaffold
         SerializedScaffold cached = new SerializedScaffold() { elements = new List<ScaffoldElement>() };
         Data = new Dictionary<string, string>();
         sectionName = section;
-        if(cache == null && ScaffoldCache.cache != null)
+        if (cache == null && ScaffoldCache.cache != null)
         {
             cache = ScaffoldCache.cache;
         }
@@ -289,7 +298,6 @@ public class Scaffold
                             scaff.name = arr[x].Substring(0, u - 1).Trim();
                             u2 = arr[x].IndexOf('"', u + 2);
                             var partial_path = arr[x].Substring(u + 1, u2 - u - 1);
-                            partials.Add(scaff.name, partial_path);
 
                             //load the scaffold HTML
                             var newScaff = new Scaffold(partial_path, "", cache);
@@ -309,7 +317,8 @@ public class Scaffold
                                             newScaff.Data[kvp.Key] = kvp.Value;
                                         }
                                     }
-                                    catch (Exception) {
+                                    catch (Exception)
+                                    {
                                     }
                                 }
                             }
@@ -332,6 +341,15 @@ public class Scaffold
                                 }
                                 y += 2;
                             }
+
+                            partials.Add(new ScaffoldPartial() { Name = scaff.name, Path = partial_path, Prefix = prefix });
+                            partials.AddRange(newScaff.partials.Select(a =>
+                            {
+                                var partial = a;
+                                partial.Prefix = prefix + partial.Prefix;
+                                return partial;
+                            })
+                            );
                             arr[x] = "{!}" + ht + arr[x].Substring(i + 2);
                             HTML = JoinHTML(arr);
                             dirty = true; //HTML is dirty, restart loop
@@ -372,14 +390,14 @@ public class Scaffold
                                     //found tag end
                                     scaff.name = arr[x].Substring(0, i).Trim();
                                 }
-                                
-                                if(scaff.name.IndexOf('/') < 0 && !partials.Keys.Any(a => scaff.name.IndexOf(a + "-") == 0))
-                                {   
+
+                                if (scaff.name.IndexOf('/') < 0)
+                                {
                                     if (fields.ContainsKey(scaff.name))
                                     {
                                         //add element index to existing field
                                         var field = fields[scaff.name];
-                                        fields[scaff.name] = field.Append(elements.Count).ToArray(); 
+                                        fields[scaff.name] = field.Append(elements.Count).ToArray();
                                     }
                                     else
                                     {
@@ -387,10 +405,10 @@ public class Scaffold
                                         fields.Add(scaff.name, new int[] { elements.Count });
                                     }
                                 }
-                                
+
                                 //get optional path stored within variable tag (if exists)
                                 //e.g. {{my-component "list"}}
-                                if(u > 0 && u < i - 2 && (c == -1 || c > u))
+                                if (u > 0 && u < i - 2 && (c == -1 || c > u))
                                 {
                                     u2 = arr[x].IndexOf('"', u + 2);
                                     if (i - u2 > 0)
@@ -398,7 +416,8 @@ public class Scaffold
                                         var data = arr[x].Substring(u + 1, u2 - u - 1);
                                         scaff.path = data;
                                     }
-                                }else if(s < i && s > 0)
+                                }
+                                else if (s < i && s > 0)
                                 {
                                     //get optional variables stored within tag
                                     var vars = arr[x].Substring(s + 1, i - s - 1);
@@ -406,9 +425,10 @@ public class Scaffold
                                     {
                                         scaff.vars = (Dictionary<string, string>)JsonConvert.DeserializeObject("{" + vars + "}", typeof(Dictionary<string, string>));
                                     }
-                                    catch (Exception) {
+                                    catch (Exception)
+                                    {
                                     }
-                                    
+
                                 }
                             }
                             else
@@ -427,7 +447,9 @@ public class Scaffold
                 var scaffold = new SerializedScaffold
                 {
                     Data = Data,
-                    elements = elements
+                    elements = elements,
+                    fields = fields,
+                    partials = partials
                 };
                 cache.Add(file + '/' + section, scaffold);
             }
@@ -438,18 +460,15 @@ public class Scaffold
     {
         for (var x = 0; x < html.Length; x++)
         {
-            switch (html[x].Substring(0, 3))
+            if (html[x].Substring(0, 3) == "{!}")
             {
-                case "{!}":
-                    html[x] = html[x].Substring(3);
-                    break;
-                default:
-                    html[x] = "{{" + html[x];
-                    break;
+                html[x] = html[x].Substring(3);
+            }
+            else
+            {
+                html[x] = "{{" + html[x];
             }
         }
-
-
         return string.Join("", html);
     }
 
@@ -510,7 +529,7 @@ public class Scaffold
                 }
             }
 
-            if(hideElements == true)
+            if (hideElements == true)
             {
                 //remove all groups of HTML in list that should not be displayed
                 List<int> removeIndexes = new List<int>();
