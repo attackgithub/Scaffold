@@ -379,7 +379,7 @@ public class Scaffold
                                     {
                                         //add element index to existing field
                                         var field = fields[scaff.name];
-                                        fields[scaff.name] = field.Append(elements.Count).ToArray();
+                                        fields[scaff.name] = field.Append(elements.Count).ToArray(); 
                                     }
                                     else
                                     {
