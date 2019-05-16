@@ -38,6 +38,28 @@ scaffold.Data["content"] = "Hello World!";
 return scaffold.Render();
 ```
 
+### Show Blocks of HTML
+You can render optional blocks of content when neccessary.
+```
+<h3>{{Title}}</h3>
+{{has-author}}
+	<span>Published by {{author}}</span>
+{{/has-author}}
+```
+
+Now, you can use `Scaffold` to render the optional author information.
+
+```
+var scaffold = new Scaffold("/Views/Article/article.html")
+scaffold.Data["Title"] = "Hello World!";
+if(author != ""){
+	scaffold.Show("has-author");
+	scaffold.Data["author"] = author;
+}
+return scaffold.Render();
+```
+
+
 ### Bind Objects to Templates
 You can bind complex C# objects to templates
 

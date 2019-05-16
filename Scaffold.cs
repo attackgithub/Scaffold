@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
@@ -10,7 +11,7 @@ using Newtonsoft.Json;
 [Serializable]
 public struct SerializedScaffold
 {
-    public Dictionary<string, string> Data;
+    public ScaffoldData Data;
     public Dictionary<string, int[]> fields;
     public List<ScaffoldElement> elements;
     public List<ScaffoldPartial> partials;
@@ -105,11 +106,11 @@ public class ScaffoldDictionary : Dictionary<string, string>
     {
         get
         {
-            return _parent.Data[_id + "-" + key];
+            return _parent[_id + "-" + key];
         }
         set
         {
-            _parent.Data[_id + "-" + key] = value;
+            _parent[_id + "-" + key] = value;
         }
     }
 }
@@ -122,9 +123,121 @@ public class ScaffoldPartial
     public string Prefix { get; set; } //prefix used in html variable names after importing the partial
 }
 
+public class ScaffoldData : IDictionary<string, string>
+{
+    private Dictionary<string, string> _data = new Dictionary<string, string>();
+
+    public string this[string key] {
+        get
+        {
+            return _data[key];
+        }
+        set
+        {
+            _data[key] = value;
+        }
+    }
+
+    public bool this[string key, bool isBool]
+    {
+        get
+        {
+            if (_data[key] == "True")
+            {
+                return true;
+            }
+            return false;
+        }
+
+        set
+        {
+            if (value)
+            {
+                _data[key] = "True";
+            }
+            else
+            {
+                _data[key] = "False";
+            }
+        }
+    }
+
+    public ICollection<string> Keys => _data.Keys;
+
+    public ICollection<string> Values => _data.Values;
+
+    public int Count => _data.Count;
+
+    public bool IsReadOnly => false;
+
+    public void Add(string key, string value)
+    {
+        _data.Add(key, value);
+    }
+
+    public void Add(string key, bool value)
+    {
+        _data.Add(key, value.ToString());
+    }
+
+    public void Add(KeyValuePair<string, string> item)
+    {
+        _data.Add(item.Key, item.Value);
+    }
+
+    public void Clear()
+    {
+        _data.Clear();
+    }
+
+    public bool Contains(KeyValuePair<string, string> item)
+    {
+        return _data.Contains(item);
+    }
+
+    public bool ContainsKey(string key)
+    {
+        return _data.ContainsKey(key);
+    }
+
+    public void CopyTo(KeyValuePair<string, string>[] array, int arrayIndex)
+    {
+        throw new NotImplementedException();
+    }
+
+    public IEnumerator<KeyValuePair<string, string>> GetEnumerator()
+    {
+        return _data.GetEnumerator();
+    }
+
+    public bool Remove(string key)
+    {
+        return _data.Remove(key);
+    }
+
+    public bool Remove(KeyValuePair<string, string> item)
+    {
+        if (_data.Contains(item))
+        {
+            return _data.Remove(item.Key);
+        }
+        return false;
+    }
+
+    public bool TryGetValue(string key, out string value)
+    {
+        return _data.TryGetValue(key, out value);
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return _data.GetEnumerator();
+    }
+}
+
 public class Scaffold
 {
-    public Dictionary<string, string> Data;
+    public ScaffoldData Data;
     public List<ScaffoldElement> elements;
     public List<ScaffoldPartial> partials = new List<ScaffoldPartial>();
     public Dictionary<string, int[]> fields = new Dictionary<string, int[]>();
@@ -147,7 +260,7 @@ public class Scaffold
     }
 
     /// <summary>
-    /// Use a template file to bind data and replace mustache variables with data, e.g. {{my-name}} is replaced with value of Scaffold.Data["my-name"]
+    /// Use a template file to bind data and replace mustache variables with data, e.g. {{my-name}} is replaced with value of Scaffold["my-name"]
     /// </summary>
     /// <param name="file">relative path to the template file</param>
     /// <param name="cache">Dictionary object used to save cached, parsed template to</param>
@@ -157,7 +270,7 @@ public class Scaffold
     }
 
     /// <summary>
-    /// Use a template file to bind data and replace mustache variables with data, e.g. {{my-name}} is replaced with value of Scaffold.Data["my-name"]
+    /// Use a template file to bind data and replace mustache variables with data, e.g. {{my-name}} is replaced with value of Scaffold["my-name"]
     /// </summary>
     /// <param name="file">relative path to the template file</param>
     /// <param name="section">section name within the template file to load, e.g. {{my-section}} ... {{/my-section}}</param>
@@ -165,6 +278,23 @@ public class Scaffold
     public Scaffold(string file, string section, Dictionary<string, SerializedScaffold> cache = null)
     {
         Setup(file, section, cache);
+    }
+
+    public string this[string key]
+    {
+        get
+        {
+            return Data[key];
+        }
+        set
+        {
+            Data[key] = value;
+        }
+    }
+
+    public void Show(string blockKey)
+    {
+        Data[blockKey, true] = true;
     }
 
     /// <summary>
@@ -208,7 +338,7 @@ public class Scaffold
     private void Setup(string file, string section = "", Dictionary<string, SerializedScaffold> cache = null, bool loadPartials = true)
     {
         SerializedScaffold cached = new SerializedScaffold() { elements = new List<ScaffoldElement>() };
-        Data = new Dictionary<string, string>();
+        Data = new ScaffoldData();
         sectionName = section;
         if (cache == null && ScaffoldCache.cache != null)
         {
@@ -314,7 +444,7 @@ public class Scaffold
                                         var kv = (Dictionary<string, string>)JsonConvert.DeserializeObject("{" + vars + "}", typeof(Dictionary<string, string>));
                                         foreach (var kvp in kv)
                                         {
-                                            newScaff.Data[kvp.Key] = kvp.Value;
+                                            newScaff[kvp.Key] = kvp.Value;
                                         }
                                     }
                                     catch (Exception)
@@ -477,7 +607,15 @@ public class Scaffold
         return Render(Data);
     }
 
-    public string Render(Dictionary<string, string> nData, bool hideElements = true)
+    private class ClosingElement
+    {
+        public string Name;
+        public int Start;
+        public int End;
+        public List<bool> Show { get; set; } = new List<bool>();
+    }
+
+    public string Render(ScaffoldData nData, bool hideElements = true)
     {
         //deserialize list of elements since we will be manipulating the list,
         //so we don't want to permanently mutate the public elements array
@@ -488,7 +626,7 @@ public class Scaffold
             var scaff = new StringBuilder();
             var s = "";
             var useScaffold = false;
-            var closing = new List<List<string>>();
+            var closing = new List<ClosingElement>();
 
             //remove any unwanted blocks of HTML from scaffold
             for (var x = 0; x < elems.Count; x++)
@@ -501,28 +639,32 @@ public class Scaffold
                         if (elems[y].name == "/" + elems[x].name)
                         {
                             //add enclosed group of HTML to list for removing
-                            List<string> closed = new List<string>
+                            var closed = new ClosingElement()
                             {
-                                elems[x].name,
-                                x.ToString(),
-                                y.ToString()
+                                Name = elems[x].name,
+                                Start = x,
+                                End = y
                             };
 
                             if (nData.ContainsKey(elems[x].name) == true)
                             {
                                 //check if user wants to include HTML 
-                                //that is between start & closing tag   
-                                s = nData[elems[x].name];
-                                if (string.IsNullOrEmpty(s) == true) { s = ""; }
-                                if (s == "true" | s == "1")
+                                //that is between start & closing tag  
+                                if (nData[elems[x].name, true] == true)
                                 {
-                                    closed.Add("true");
+                                    closed.Show.Add(true);
                                 }
-                                else { closed.Add(""); }
+                                else
+                                {
+                                    closed.Show.Add(false);
+                                }
                             }
-                            else { closed.Add(""); }
+                            else {
+                                closed.Show.Add(false);
+                            }
 
                             closing.Add(closed);
+                            break;
                         }
                     }
 
@@ -536,10 +678,10 @@ public class Scaffold
                 bool isInList = false;
                 for (int x = 0; x < closing.Count; x++)
                 {
-                    if (closing[x][3] != "true")
+                    if (closing[x].Show.FirstOrDefault() != true)
                     {
                         //add range of indexes from closing to the removeIndexes list
-                        for (int y = int.Parse(closing[x][1]); y < int.Parse(closing[x][2]); y++)
+                        for (int y = closing[x].Start; y < closing[x].End; y++)
                         {
                             isInList = false;
                             for (int z = 0; z < removeIndexes.Count; z++)
@@ -569,7 +711,10 @@ public class Scaffold
                 {
                     for (int y = 0; y < closing.Count; y++)
                     {
-                        if (elems[x].name == closing[y][0]) { useScaffold = false; break; }
+                        if (elems[x].name == closing[y].Name)
+                        {
+                            useScaffold = false; break;
+                        }
                     }
                 }
                 else { useScaffold = false; }
@@ -611,7 +756,7 @@ public class Scaffold
             {
                 if (Data.ContainsKey(part.name))
                 {
-                    if (Data[part.name] == "1" || Data[part.name].ToLower() == "true")
+                    if (Data[part.name, true] == true)
                     {
                         html += Get(part.name);
                     }
