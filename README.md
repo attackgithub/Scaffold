@@ -34,7 +34,7 @@ Now, you can use `Scaffold` to replace the variables within your html file with 
 
 ```
 var scaffold = new Scaffold("/Views/Shared/layout.html")
-scaffold.Data["content"] = "Hello World!";
+scaffold["content"] = "Hello World!";
 return scaffold.Render();
 ```
 
@@ -51,10 +51,10 @@ Now, you can use `Scaffold` to render the optional author information.
 
 ```
 var scaffold = new Scaffold("/Views/Article/article.html")
-scaffold.Data["Title"] = "Hello World!";
+scaffold["Title"] = "Hello World!";
 if(author != ""){
 	scaffold.Show("has-author");
-	scaffold.Data["author"] = author;
+	scaffold["author"] = author;
 }
 return scaffold.Render();
 ```
@@ -74,9 +74,9 @@ Now, you can use `Scaffold` to bind variables within your html file to C# object
 
 ```
 var scaffold = new Scaffold("/Views/UI/header.html")
-scaffold.Bind(new UI.Header(){
-	User = new UI.User(){
-		Name = myUser.Name,
+scaffold.Bind(new {
+	User = new {
+		myUser.Name,
 		Image = myUser.Photo == 1 ? "/images/users/" + myUser.Id + ".jpg" : "/images/nophoto.jpg"
 	}
 });
@@ -113,8 +113,8 @@ Now, you can use `Scaffold` to replace variables that reside in the partial temp
 ```
 var scaffold = new Scaffold("/Views/home.html")
 var header = scaffold.Child("header");
-header.Data["company"] = "Datasilk";
-header.Data["username"] = User.name;
+header["company"] = "Datasilk";
+header["username"] = User.name;
 return scaffold.Render();
 ```
 
@@ -139,7 +139,7 @@ In the above example, the default value for the variable `username` that exists 
 var scaffold = new Scaffold("/Views/home.html")
 if(User.Id > 0)
 {
-	scaffold.Child("header").Data["username"] = User.Name;
+	scaffold.Child("header")["username"] = User.Name;
 }
 return scaffold.Render();
 ```
@@ -164,15 +164,15 @@ In the above example, the app will generate a user list based on a search filter
 
 ```
 var scaffold = new Scaffold("/Views/users.html")
-var index = scaffold.fields["user-list"].First();
-var elem = scaffold.elements[index];
-var filter = elem.vars["filter"] ?? "";
-var length = elem.vars["length"] ?? 20;
+var index = scaffold.Fields["user-list"].First();
+var elem = scaffold.Elements[index];
+var filter = elem.Vars["filter"] ?? "";
+var length = elem.Vars["length"] ?? 20;
 
 // generate user list
-var userlist = new StringBuilder();
-//...load users into userlist, then...
-scaffold.Data["user-list"] = userlist.ToString();
+var html = new StringBuilder();
+//...load html users list into string builder, then...
+scaffold["user-list"] = html.ToString();
 return scaffold.Render();
 ```
 
